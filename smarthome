@@ -1,0 +1,111 @@
+#!/bin/bash
+set -euo pipefail
+IFS=$'\n\t'
+
+BUILD_DIR="${PWD}/build"
+RANCHERISO="${BUILD_DIR}/rancheros.iso"
+RKE="${BUILD_DIR}/rke"
+RKE_CONFIG="${BUILD_DIR}/cluster.yml"
+
+function download_dependencies() {
+  if [ ! -d "${BUILD_DIR}" ]; then
+    mkdir -p "${BUILD_DIR}"
+  fi
+
+  if [ ! -f "${RANCHERISO}" ]; then
+    wget https://github.com/rancher/os/releases/download/v1.5.1/rancheros.iso -O "${RANCHERISO}"
+  fi
+
+  if [ ! -f "${RKE}" ]; then
+    wget https://github.com/rancher/rke/releases/download/v0.1.17/rke_darwin-amd64 -O "${RKE}"
+    chmod +x "${RKE}"
+  fi
+}
+
+function create() {
+  echo "create instance smarthome"
+  docker-machine create -d virtualbox --virtualbox-boot2docker-url "file://${RANCHERISO}" --virtualbox-memory "8192" smarthome
+}
+
+function destroy() {
+  echo "destroy instance smarthome"
+  docker-machine rm -f "smarthome"
+}
+
+function print_rke_config() {
+  IP=$(docker-machine ip smarthome)
+  echo "# do not edit, file is generated"
+  echo "nodes:"
+  echo "- address: ${IP}"
+  echo "  user: rancher"
+  echo "  ssh_key_path: ~/.docker/machine/machines/smarthome/id_rsa"
+  echo "  role:"
+  echo "  - etcd"
+  echo "  - controlplane"
+  echo "  - worker"
+}
+
+function create_rke_config() {
+  print_rke_config > "${RKE_CONFIG}"
+}
+
+function deploy_k8s() {
+  "${RKE}" up --config "${RKE_CONFIG}"
+}
+
+function show_help() {
+  echo "usage smarthome [up|start|ssh|stop|down]"
+  exit 1
+}
+
+function up() {
+  download_dependencies
+  create
+  create_rke_config
+  deploy_k8s
+}
+
+function start() {
+  docker-machine start smarthome
+}
+
+function stop() {
+  docker-machine stop smarthome
+}
+
+function down() {
+  destroy
+}
+
+function ssh() {
+  docker-machine ssh "smarthome"
+}
+
+if [ $# = 0 ]; then
+  show_help
+fi
+
+SUBCMD="${1}"
+case ${SUBCMD} in
+    "" | "-h" | "--help")
+        show_help
+        ;;
+    "up") 
+        up
+        ;;
+    "start")
+        start
+        ;;
+    "ssh")
+        ssh
+        ;;
+    "stop")
+        stop
+        ;;
+    "down")
+        down
+        ;;
+    *)
+        show_help
+        ;;
+esac

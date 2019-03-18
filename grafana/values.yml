@@ -1,0 +1,7 @@
+ingress:
+  enabled: true
+  hosts:
+  - grafana.nitilon.local
+
+persistence:
+  enabled: true

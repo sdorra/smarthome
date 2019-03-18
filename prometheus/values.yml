@@ -1,0 +1,11 @@
+alertmanager:
+  ingress:
+    enabled: true
+    hosts:
+      - alertmanager.nitilon.local
+
+server:
+  ingress:
+    enabled: true
+    hosts:
+      - prometheus.nitilon.local

@@ -1,0 +1,10 @@
+rbac:
+  create: true
+
+provider: coredns
+
+logLevel: debug
+
+extraEnv:
+- name: ETCD_URLS
+  value: http://coredns-db-client:2379

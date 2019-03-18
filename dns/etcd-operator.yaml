@@ -1,0 +1,17 @@
+customResources:
+  createEtcdClusterCRD: true
+
+etcdOperator:
+  resources:
+    cpu: 10m
+    memory: 64Mi
+
+backupOperator:
+  resources:
+    cpu: 10m
+    memory: 64Mi
+
+restoreOperator:
+  resources:
+    cpu: 10m
+    memory: 64Mi
