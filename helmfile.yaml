@@ -1,0 +1,197 @@
+repositories:
+- name: stable
+  url: https://kubernetes-charts.storage.googleapis.com
+- name: sdorra
+  url: https://sdorra.github.io/charts/
+
+helmDefaults:
+  tillerNamespace: kube-system
+  kubeContext: local
+
+releases:
+# storage
+- name: host-path-provisioner
+  namespace: kube-system
+  chart: sdorra/host-path-provisioner
+  version: 0.1.2
+
+# service type loadbalancer
+- name: metallb
+  namespace: kube-system
+  chart: stable/metallb
+  version: 0.8.4
+  values:
+  - prometheus:
+      scrapeAnnotations: true
+    configInline:
+      address-pools:
+      - name: nitilon.svc
+        protocol: layer2
+        addresses:
+        - 192.168.99.200-192.168.99.250
+
+# dns
+- name: etcd-operator
+  namespace: kube-system
+  chart: stable/etcd-operator
+  version: 0.8.3
+  values:
+  - etcdOperator:
+      resources:
+        cpu: 0
+        memory: 0
+    backupOperator:
+      resources:
+        cpu: 0
+        memory: 0
+    restoreOperator:
+      resources:
+        cpu: 0
+        memory: 0
+
+- name: coredns
+  namespace: kube-system
+  chart: stable/coredns
+  version: 1.2.5
+  values:
+  - serviceType: "LoadBalancer"
+    isClusterService: false
+    rbac:
+      create: true
+    resources: {}
+    servers:
+    - zones:
+      - zone: .
+      port: 53
+      plugins:
+      - name: cache
+        parameters: 30
+      - name: errors
+      - name: health
+      - name: kubernetes
+        parameters: cluster.local
+      - name: loadbalance
+        parameters: round_robin
+      - name: prometheus
+        parameters: 0.0.0.0:9153
+      - name: proxy
+        parameters: . /etc/resolv.conf
+      - name: etcd
+        parameters: nitilon.local
+        configBlock: |-
+          stubzones
+          path /skydns
+          endpoint http://coredns-db-client:2379
+
+- name: external-dns
+  namespace: kube-system
+  chart: stable/external-dns
+  version: 1.7.0
+  values:
+  - rbac:
+      create: true
+    provider: coredns
+    extraEnv:
+    - name: ETCD_URLS
+      value: http://coredns-db-client:2379
+
+# monitoring
+- name: prometheus
+  namespace: default
+  chart: stable/prometheus
+  version: 8.9.0
+  values:
+  - alertmanager:
+      enabled: false
+    pushgateway:
+      enabled: false
+    server:
+      ingress:
+        enabled: true
+        hosts:
+          - prometheus.nitilon.local
+
+- name: loki
+  namespace: default
+  chart: sdorra/loki
+  version: 0.1.0
+  values:
+  - persistence:
+      enabled: true
+
+- name: grafana
+  namespace: default
+  chart: stable/grafana
+  version: 2.2.5
+  values:
+  - adminUser: admin
+    adminPassword: admin123
+    ingress:
+      enabled: true
+      hosts:
+      - grafana.nitilon.local
+    persistence:
+      enabled: true
+
+# kodi
+- name: mariadb
+  namespace: default
+  chart: stable/mariadb
+  version: 5.10.0
+  values:
+  - rootUser:
+      password: root123
+    rbac:
+      create: true
+    metrics:
+      enabled: true
+      annotations:
+        external-dns.alpha.kubernetes.io/hostname: "mariadb.nitilon.local."
+    replication:
+      enabled: false
+    master:
+      persistence:
+        enabled: true
+    service:
+      type: LoadBalancer
+
+# unifi
+- name: mongodb
+  namespace: default
+  chart: stable/mongodb
+  version: 5.13.0
+  values:
+  - mongodbRootPassword: root123
+    metrics:
+      enabled: true
+
+- name: unifi
+  namespace: default
+  chart: sdorra/unifi
+  version: 0.3.2
+  values:
+  - image:
+      tag: 5.10.20
+    timezone: Europe/Berlin
+    ingress:
+      enabled: true
+      hosts:
+      - unifi.nitilon.local
+    mongodb:
+      enabled: true
+      dbUri: mongodb://root:root123@mongo/unifi
+      statDbUri: mongodb://root:root123@mongo/unifi_stat
+    unifiedService:
+      enabled: false
+    controllerService:
+      type: LoadBalancer
+      annotations:
+        external-dns.alpha.kubernetes.io/hostname: "unifi-controller.nitilon.local."
+    stunService:
+      type: LoadBalancer
+      annotations:
+        external-dns.alpha.kubernetes.io/hostname: "unifi-stun.nitilon.local."
+    discoveryService:
+      type: LoadBalancer
+      annotations:
+        external-dns.alpha.kubernetes.io/hostname: "unifi-discovery.nitilon.local."
